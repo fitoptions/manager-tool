@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Manager Tool watchdog service (endpoint exe: ManagerToolSvc.exe).
+
+    Runs as a SYSTEM Windows service (Automatic start). Its ONLY job is to keep the
+    interactive agent (ManagerTool.exe) alive in the logged-in user's session and relaunch
+    it within seconds if it is killed. A standard user cannot stop a service, so this makes
+    the agent effectively un-killable by the trader — while staying fully VISIBLE (it shows
+    in services.msc and Task Manager) and removable by an administrator.
+
+    Why a separate service: a service runs in Session 0, which has no interactive desktop and
+    cannot capture the user's screen. So the service is only the guardian/launcher; the actual
+    capture keeps happening in the agent, which the service starts INTO the user's session.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ManagerToolSvc</AssemblyName>
+
+    <Version>1.2.5</Version>
+    <AssemblyVersion>1.2.5.0</AssemblyVersion>
+    <FileVersion>1.2.5.0</FileVersion>
+
+    <!-- Same hardening as the agent (H-4): no symbols, deterministic, no build-path leak. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=.</PathMap>
+    <Company>Manager Tool</Company>
+    <Product>Manager Tool</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Must stay >= the version Hosting.WindowsServices pulls in, else NU1605 package downgrade. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,113 @@
+## ---- SECRETS: never commit ----
+.env
+.env.*
+!.env.example
+*.env
+secrets.json
+*secrets*.json
+SECRETS.txt
+# credential DATA files only — extension-anchored so source files whose NAMES
+# contain "credential"/"password" (XtsCredentials.cs, ResetPasswordPrompt.xaml)
+# are NOT swallowed. Windows git has core.ignorecase=true, so bare *PASSWORD*
+# matches PasswordResetService.cs and silently drops it from the repo.
+*credentials*.txt
+*credentials*.json
+*passwords*.txt
+DHAN_CREDENTIALS.txt
+ENTER_CREDENTIALS.txt
+token.txt
+*_creds.txt
+*_creds.json
+*.secrets.json
+config.json
+!config.example.json
+!config-templates/
+appsettings.Production.json
+appsettings.*.local.json
+broker-secrets.json
+*.pem
+*.ppk
+*.pfx
+*.key
+!*.public.key
+id_rsa*
+id_ed25519*
+*.bak-*
+*.lexical-backup.json
+.rename-backup/
+
+## ---- .NET ----
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+*.dll
+*.exe
+*.pdb
+
+## ---- Python ----
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+## ---- Node / web ----
+node_modules/
+dist/
+build/
+.next/
+.cache/
+*.tsbuildinfo
+
+## ---- Data / logs / archives ----
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.csv.gz
+data/replay/
+*.zip
+*.7z
+
+## ---- IDE / OS ----
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+## ---- Added 2026-08-24: keys and bulk that must stay local ----
+# Inno Setup scripts bake the live agent enrollment key into the installer.
+# Track the .template files (placeholder key) and keep the real ones local.
+deploy/*.iss
+deploy/newvps/*.iss
+!*.iss.template
+
+# Build output and compiled installers (deploy/Output held a 47 MB exe named .jpeg).
+deploy/out/
+deploy/Output/
+deploy/newvps/Output/
+*.exe
+*.pdb
+
+# SQLite databases (activity history, credentials).
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / working backups
+*.bak
+*.bak-*
+*.bak2
+
+# graphify tool output (not source)
+graphify-out/

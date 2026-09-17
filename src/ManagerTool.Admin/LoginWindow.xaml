@@ -1,0 +1,35 @@
+<Window x:Class="ManagerTool.Admin.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Manager Tool — Sign in" Height="300" Width="380"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Server URL" Margin="0,0,0,2" />
+        <TextBox   Grid.Row="1" x:Name="ServerBox" Text="https://your-old-server.example.com" Margin="0,0,0,10" />
+
+        <TextBlock Grid.Row="2" Text="Username" Margin="0,0,0,2" />
+        <TextBox   Grid.Row="3" x:Name="UserBox" Margin="0,0,0,10" />
+
+        <TextBlock Grid.Row="4" Text="Password" Margin="0,0,0,2" />
+        <StackPanel Grid.Row="5">
+            <PasswordBox x:Name="PassBox" Margin="0,0,0,6" />
+            <TextBlock x:Name="ErrorText" Foreground="#C0392B" TextWrapping="Wrap" />
+            <Button x:Name="LoginButton" Content="Sign in" Width="90" HorizontalAlignment="Right"
+                    Margin="0,6,0,0" Click="LoginButton_Click" IsDefault="True" />
+            <TextBlock Margin="0,10,0,0" FontSize="11" Foreground="#666" TextWrapping="Wrap">
+                <Run Text="Accounts are issued by the owner." />
+                <Hyperlink x:Name="ForgotLink" Click="ForgotLink_Click">Forgot your password?</Hyperlink>
+            </TextBlock>
+            <TextBlock x:Name="ForgotText" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+        </StackPanel>
+    </Grid>
+</Window>

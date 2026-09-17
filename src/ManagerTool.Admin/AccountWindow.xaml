@@ -1,0 +1,31 @@
+<Window x:Class="ManagerTool.Admin.AccountWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Manager Tool — My account" Height="330" Width="420"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Background="#1B1B1B">
+    <StackPanel Margin="18">
+        <TextBlock FontSize="14" FontWeight="Bold" Foreground="#EEE" Text="Change my password" />
+        <TextBlock Foreground="#999" FontSize="11.5" Margin="0,4,0,0">
+            <Run Text="Signed in as" /><Run x:Name="WhoAmI" FontWeight="Bold" Foreground="#DDD" />
+        </TextBlock>
+
+        <TextBlock Text="Current password" Foreground="#BBB" FontSize="11.5" Margin="0,16,0,4" />
+        <PasswordBox x:Name="CurrentBox" Height="28" VerticalContentAlignment="Center" />
+
+        <TextBlock Text="New password (min 8)" Foreground="#BBB" FontSize="11.5" Margin="0,12,0,4" />
+        <PasswordBox x:Name="NewBox" Height="28" VerticalContentAlignment="Center"
+                     PasswordChanged="NewBox_PasswordChanged" />
+
+        <TextBlock Text="Confirm new password" Foreground="#BBB" FontSize="11.5" Margin="0,12,0,4" />
+        <PasswordBox x:Name="ConfirmBox" Height="28" VerticalContentAlignment="Center"
+                     PasswordChanged="NewBox_PasswordChanged" />
+
+        <TextBlock x:Name="Message" FontSize="11.5" Margin="0,12,0,0" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Close" Width="80" Height="28" Click="CloseButton_Click" />
+            <Button x:Name="UpdateButton" Content="Update password" Height="28" Padding="14,0" Margin="8,0,0,0"
+                    Click="UpdateButton_Click" IsEnabled="False" />
+        </StackPanel>
+    </StackPanel>
+</Window>

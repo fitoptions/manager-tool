@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms> <!-- System.Windows.Forms.Screen for multi-monitor bounds -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Endpoint de-brand: the built exe and all on-disk/registry/task names are "ManagerTool",
+         not "ManagerTool" (the internal C# namespace stays ManagerTool.* — decompile-only, shared with
+         the live server). Output file is ManagerTool.exe. -->
+    <AssemblyName>ManagerTool</AssemblyName>
+
+    <!-- Version: bump on every release so the installer actually replaces the old build (M-1).
+         1.0.3 = de-branded to "Manager Tool" (headless build carried forward).
+         1.0.4 = capture-side bandwidth fix: downscale before JPEG + skip-if-busy frame send.
+         1.0.5 = installer force-kills the running agent before file copy so silent updates
+                 actually replace the in-use exe (1.0.4 silently no-op'd on locked binary). -->
+    <!-- Keep in lockstep with AgentConnection.AgentVersion so the file version a host shows in
+         Explorer/Get-Item matches what the agent reports to the server. -->
+    <Version>1.2.5</Version>
+    <AssemblyVersion>1.2.5.0</AssemblyVersion>
+    <FileVersion>1.2.5.0</FileVersion>
+
+    <!-- Security hardening (H-4): no PDBs, deterministic, and strip absolute build paths so the
+         builder's profile folder + source layout don't leak in the shipped binary. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=.</PathMap>
+    <Company>Manager Tool</Company>
+    <Product>Manager Tool</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ManagerTool.Shared\ManagerTool.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

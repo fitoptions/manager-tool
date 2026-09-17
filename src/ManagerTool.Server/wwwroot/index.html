@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Manager Tool Admin</title>
+<style>
+  :root{
+    --bg:#0f1419; --surface:#161d24; --surface2:#1d2730; --line:#28333d;
+    --ink:#e7ecef; --ink2:#9aa6b0; --ink3:#6d7b85;
+    --accent:#2cb0c2; --accent2:#1c8ea0;
+    --crit:#e0685c; --warn:#d7a53e; --info:#4f93b8; --ok:#38b87e;
+    --mono:"Cascadia Code","SF Mono",ui-monospace,Consolas,monospace;
+    --sans:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px}
+  button{font-family:inherit;cursor:pointer}
+  input,select{font-family:inherit}
+  .hidden{display:none!important}
+
+  /* Login */
+  #login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px;width:min(380px,100%);box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .card h1{margin:0 0 4px;font-size:1.3rem}
+  .card .sub{color:var(--ink2);font-size:.85rem;margin-bottom:20px}
+  label{display:block;font-size:.78rem;color:var(--ink2);margin:12px 0 4px}
+  input{width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:.95rem}
+  input:focus{outline:none;border-color:var(--accent)}
+  .btn{background:var(--accent);color:#04181c;border:none;border-radius:8px;padding:10px 16px;font-weight:600;font-size:.9rem}
+  .btn:hover{background:var(--accent2)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+  .btn.ghost:hover{border-color:var(--accent)}
+  .btn.danger{background:#3a2020;color:var(--crit);border:1px solid #52302c}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  #loginBtn{width:100%;margin-top:20px;padding:11px}
+  .err{color:var(--crit);font-size:.82rem;margin-top:10px;min-height:1em}
+
+  /* App shell */
+  #app{display:flex;flex-direction:column;height:100vh}
+  header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex:0 0 auto}
+  header .brand{font-weight:700;letter-spacing:.02em}
+  header .brand span{color:var(--accent)}
+  header .spacer{flex:1}
+  .pill{font-family:var(--mono);font-size:.72rem;padding:3px 9px;border-radius:999px;background:var(--surface2);color:var(--ink2)}
+  #alertsBtn{position:relative;background:#2a1e1e;border:1px solid #45302c;color:var(--ink);border-radius:8px;padding:7px 12px;font-size:.85rem}
+  #alertBadge{color:var(--crit);font-weight:700}
+
+  main{flex:1;display:flex;min-height:0}
+  .col-left{width:340px;flex:0 0 auto;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .col-right{flex:1;display:flex;flex-direction:column;min-height:0;background:#000}
+  #app.collapsed .col-left{display:none}
+  /* Browser full-screen on the monitor container */
+  #screenwrap:fullscreen{background:#000}
+  #screenwrap:fullscreen #screen{max-width:100vw;max-height:100vh}
+
+  .panel-h{padding:9px 14px;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);font-family:var(--mono);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .hosts{overflow-y:auto;flex:1;min-height:120px}
+  .host{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;gap:8px}
+  .host:hover{background:var(--surface)}
+  .host.sel{background:var(--surface2);border-left:3px solid var(--accent);padding-left:11px}
+  .host .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:0 0 auto}
+  .host .nm{font-weight:600}
+  .host .u{color:var(--ink3);font-size:.78rem}
+  .host .ver{font-family:var(--mono);font-size:.68rem;color:var(--ink3);border:1px solid var(--line);border-radius:6px;padding:1px 6px;flex:0 0 auto;white-space:nowrap}
+  .host .ver.old{color:var(--warn);border-color:var(--warn)}
+
+  .activity{flex:1;display:flex;flex-direction:column;min-height:0}
+  .search{padding:8px 12px;border-bottom:1px solid var(--line);display:flex;gap:6px}
+  .search input{padding:7px 10px;font-size:.85rem}
+  .rows{overflow-y:auto;flex:1}
+  .row{padding:7px 14px;border-bottom:1px solid var(--surface2);font-size:.82rem}
+  .row .t{color:var(--ink3);font-family:var(--mono);font-size:.72rem}
+  .row .a{color:var(--accent);font-weight:600;margin:0 6px}
+  .row .d{color:var(--ink2);word-break:break-word}
+
+  /* Live screen */
+  .screenbar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .screenbar select{padding:6px 8px;background:var(--surface2);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+  .screenwrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+  #screen{max-width:100%;max-height:100%;object-fit:contain}
+  #screenHint{position:absolute;color:var(--ink3);font-size:.9rem}
+
+  /* Alerts drawer */
+  #alertsDrawer{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:20}
+  #alertsDrawer.open{display:block}
+  .drawer{position:absolute;right:0;top:0;bottom:0;width:min(560px,100%);background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column}
+  .drawer h2{margin:0;padding:14px 16px;font-size:1rem;border-bottom:1px solid var(--line);display:flex;align-items:center}
+  .alerts{overflow-y:auto;flex:1}
+  .alert{padding:11px 16px;border-bottom:1px solid var(--surface2);display:flex;gap:10px;align-items:flex-start}
+  .sev{font-family:var(--mono);font-size:.66rem;padding:2px 7px;border-radius:5px;font-weight:700;flex:0 0 auto;color:#fff}
+  .sev.critical{background:var(--crit)} .sev.warning{background:var(--warn)} .sev.info{background:var(--info)}
+  .alert .body{flex:1;font-size:.86rem}
+  .alert .meta{color:var(--ink3);font-size:.72rem;font-family:var(--mono);margin-top:2px}
+  .alert .ackbtn{font-size:.72rem;padding:3px 8px;border-radius:5px;border:1px solid var(--line);background:transparent;color:var(--ink2)}
+
+  /* Who else is watching this host */
+  .viewers{font-size:.78rem;color:var(--ink3);white-space:nowrap}
+  .viewers b{color:var(--accent);font-weight:600}
+
+  /* Owner: per-viewer workstation access */
+  .acc-viewer{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)}
+  .acc-name{font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .acc-chips{display:flex;flex-wrap:wrap;gap:6px}
+  .acc-chip{font-size:.76rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink2);display:inline-flex;align-items:center;gap:6px}
+  .acc-chip:hover{border-color:var(--accent);color:var(--ink)}
+  .acc-chip.blocked{background:#3a2020;border-color:#52302c;color:var(--crit);text-decoration:line-through}
+  .acc-chip.blocked:hover{border-color:var(--crit)}
+  .acc-chip .st{width:6px;height:6px;border-radius:50%;background:var(--ink3);flex:0 0 auto}
+  .acc-chip .st.up{background:var(--ok)}
+  .acc-sum{font-size:.74rem;color:var(--ink3);margin-top:8px}
+
+  @media(max-width:760px){
+    main{flex-direction:column}
+    .col-left{width:100%;max-height:46%;border-right:none;border-bottom:1px solid var(--line)}
+    .hosts{flex:1;min-height:0}
+    .col-right{min-height:300px}
+  }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login">
+  <form class="card" id="loginForm">
+    <h1>Manager Tool <span style="color:var(--accent)">Admin</span></h1>
+    <div class="sub">Sign in to monitor your desk from anywhere.</div>
+    <label>Username</label>
+    <input id="username" name="username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" autofocus />
+    <label>Password</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" />
+    <button class="btn" id="loginBtn" type="submit">Sign in</button>
+    <div class="err" id="loginErr"></div>
+    <div style="margin-top:16px;text-align:center;font-size:.82rem;color:var(--ink3)">
+      Accounts are issued by the owner. ·
+      <a href="#" id="showForgot" style="color:var(--accent)">Forgot your password?</a>
+    </div>
+  </form>
+
+  <form class="card hidden" id="forgotForm" style="width:min(380px,100%)">
+    <h1 style="font-size:1.15rem">Forgot your password</h1>
+    <div class="sub">If your username is your email address, we'll send a one-time code to it.</div>
+    <label>Your username</label>
+    <input id="forgotUser" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" />
+    <button class="btn" id="forgotBtn" type="submit" style="width:100%;margin-top:18px">Send reset code</button>
+    <div id="forgotMsg" style="font-size:.85rem;margin-top:10px"></div>
+    <div style="margin-top:14px;text-align:center;font-size:.85rem"><a href="#" id="backToLogin2" style="color:var(--accent)">← Back to sign in</a></div>
+  </form>
+
+  <form class="card hidden" id="otpForm" style="width:min(380px,100%)">
+    <h1 style="font-size:1.15rem">Enter your code</h1>
+    <div class="sub" id="otpSub">Check your email for a 6-digit code. It expires in 10 minutes.</div>
+    <label>Reset code</label>
+    <input id="otpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+           style="font-family:var(--mono);font-size:1.3rem;letter-spacing:.35em;text-align:center" />
+    <label>New password (min 8)</label>
+    <input id="otpNewPass" type="password" autocomplete="new-password" />
+    <label>Confirm new password</label>
+    <input id="otpNewPass2" type="password" autocomplete="new-password" />
+    <button class="btn" id="otpBtn" type="submit" style="width:100%;margin-top:18px">Set new password</button>
+    <div id="otpMsg" style="font-size:.85rem;margin-top:10px"></div>
+    <div style="margin-top:14px;text-align:center;font-size:.85rem">
+      <a href="#" id="otpResend" style="color:var(--accent)">Send a new code</a> ·
+      <a href="#" id="backToLogin3" style="color:var(--accent)">← Back to sign in</a>
+    </div>
+  </form>
+</div>
+
+<!-- App -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand">Manager<span>Tool</span></div>
+    <span class="pill" id="hostCount">0 online</span>
+    <div class="spacer"></div>
+    <button class="btn ghost hdr" id="reportsBtn" style="padding:7px 12px">📊 Reports</button>
+    <button class="btn ghost hdr" id="auditBtn" style="padding:7px 12px">📝 Audit</button>
+    <button class="btn ghost hdr" id="recordingsBtn" style="padding:7px 12px">⏺ Recordings</button>
+    <button class="btn ghost hdr" id="rolloutBtn" style="padding:7px 12px">🚀 Updates</button>
+    <button id="alertsBtn">⚠ Alerts <span id="alertBadge"></span></button>
+    <button class="btn ghost" id="accountBtn" style="padding:7px 12px">⚙ Account<span id="resetBadge" style="font-weight:700;color:var(--warn)"></span></button>
+    <button class="btn ghost" id="logoutBtn" style="padding:7px 12px">Sign out</button>
+  </header>
+  <main>
+    <div class="col-left">
+      <div class="panel-h">Workstations
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn" id="updateBtn" style="font-size:.7rem;padding:2px 8px;margin-right:6px" disabled>Update…</button>
+        <button class="btn danger" id="removeBtn" style="font-size:.7rem;padding:2px 8px" disabled>Remove…</button>
+      </div>
+      <div class="hosts" id="hosts"></div>
+    </div>
+    <div class="col-right">
+      <div class="screenbar">
+        <button class="btn ghost" id="collapseBtn" style="padding:6px 10px" title="Hide the side panel for a wider view">⟨⟩ Collapse</button>
+        <strong style="font-size:.85rem">Live Screen</strong>
+        <button class="btn" id="viewBtn" disabled style="padding:6px 12px">View</button>
+        <button class="btn ghost" id="stopBtn" disabled style="padding:6px 12px">Stop</button>
+        <button class="btn ghost" id="recBtn" disabled style="padding:6px 12px;color:var(--crit)">● Rec</button>
+        <span style="color:var(--ink3);font-size:.8rem">Monitor</span>
+        <select id="monitor"></select>
+        <button class="btn ghost" id="fsBtn" disabled style="padding:6px 12px" title="Full-screen this monitor (Esc to exit)">⛶ Full screen</button>
+        <span id="viewStatus" style="color:var(--ink3);font-size:.78rem"></span>
+        <span id="viewers" class="viewers"></span>
+      </div>
+      <div class="screenwrap" id="screenwrap">
+        <span id="screenHint">Select a workstation and press View</span>
+        <canvas id="screen" class="hidden" aria-label="live screen"></canvas>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Updates / rollout drawer -->
+<div id="rolloutDrawer" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:20">
+  <div class="drawer">
+    <h2>Updates &amp; rollout <span class="spacer" style="flex:1"></span>
+      <button class="btn ghost" id="rolloutClose" style="padding:4px 10px;font-size:.8rem">Close</button></h2>
+    <div style="overflow-y:auto;flex:1;padding:20px">
+      <div style="color:var(--ink2);font-size:.85rem;margin-bottom:14px">
+        Hosts auto-update themselves. A new version rolls out to the <b>canary</b> first; only once it
+        reports healthy does the rest of the fleet follow — so a bad build can’t take everyone down at once.
+      </div>
+
+      <div id="rolloutState" style="background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:.85rem;margin-bottom:16px">…</div>
+
+      <h3 style="font-size:1rem;margin:6px 0 10px">Start / adjust a rollout <span style="font-size:.72rem;color:var(--ink3);font-weight:400">— owner only</span></h3>
+      <label style="font-size:.78rem;color:var(--ink2)">Target version</label>
+      <input id="rolloutTarget" placeholder="e.g. 1.2.1" style="width:100%;padding:9px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink);margin-bottom:8px" />
+      <label style="font-size:.78rem;color:var(--ink2)">Canary host (updates first)</label>
+      <select id="rolloutCanary" style="width:100%;padding:9px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink);margin-bottom:12px"></select>
+      <button class="btn" id="rolloutSave" style="padding:9px 16px">Save rollout</button>
+      <div id="rolloutMsg" style="margin-top:8px;font-size:.82rem"></div>
+
+      <h3 style="font-size:1rem;margin:26px 0 10px">Per-host update status</h3>
+      <div id="rolloutStatuses" style="font-size:.84rem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Account drawer -->
+<div id="accountDrawer" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:20">
+  <div class="drawer">
+    <h2>Account <span class="spacer" style="flex:1"></span>
+      <button class="btn ghost" id="accountClose" style="padding:4px 10px;font-size:.8rem">Close</button></h2>
+    <div style="overflow-y:auto;flex:1;padding:20px">
+      <div style="color:var(--ink2);font-size:.9rem;margin-bottom:6px">Signed in as <b id="whoami" style="color:var(--ink)"></b></div>
+
+      <h3 style="font-size:1rem;margin:18px 0 10px">Change password</h3>
+      <label style="font-size:.78rem;color:var(--ink2)">Current password</label>
+      <input id="curPass" type="password" style="width:100%;padding:9px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink);margin-bottom:8px" />
+      <label style="font-size:.78rem;color:var(--ink2)">New password (min 8)</label>
+      <input id="newPass" type="password" style="width:100%;padding:9px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink);margin-bottom:8px" />
+      <button class="btn" id="changePassBtn" style="padding:9px 16px">Update password</button>
+      <div id="passMsg" style="font-size:.82rem;margin-top:8px"></div>
+
+      <div id="adminMgmt" class="hidden">
+        <div id="resetQueueWrap" class="hidden">
+          <h3 style="font-size:1rem;margin:26px 0 8px">Locked-out viewers <span style="font-size:.72rem;color:var(--ink3);font-weight:400">— owner only</span></h3>
+          <div style="color:var(--ink3);font-size:.8rem;margin-bottom:10px">
+            These accounts reported being locked out. Set them a new password and pass it on, or dismiss
+            the request. Anyone can send one of these, so confirm it really came from the person.
+          </div>
+          <div id="resetQueue"></div>
+        </div>
+
+        <h3 style="font-size:1rem;margin:26px 0 10px">Agent download password <span style="font-size:.72rem;color:var(--ink3);font-weight:400">— owner only</span></h3>
+        <div style="color:var(--ink3);font-size:.8rem;margin-bottom:6px">Protects <b style="color:var(--ink2)">example.com/agent/…</b> (username stays <b style="color:var(--ink2)">managertool</b>).</div>
+        <input id="dlPass" type="text" placeholder="New download password (min 8)" style="width:100%;padding:9px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink);margin-bottom:8px" />
+        <button class="btn" id="dlPassBtn" style="padding:9px 16px">Set download password</button>
+        <div id="dlMsg" style="font-size:.82rem;margin-top:8px"></div>
+
+        <h3 style="font-size:1rem;margin:26px 0 10px">Viewers <span style="font-size:.72rem;color:var(--ink3);font-weight:400">— owner only</span></h3>
+        <div style="color:var(--ink3);font-size:.8rem;margin-bottom:10px">
+          Issue a viewer their sign-in directly — it works immediately, no approval step. Give them the
+          password out of band; they can change it themselves once signed in.
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <input id="newViewerUser" placeholder="Username" autocomplete="off"
+                 style="flex:1 1 130px;min-width:0;padding:9px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink)" />
+          <input id="newViewerPass" placeholder="Password (min 8)" autocomplete="new-password"
+                 style="flex:1 1 130px;min-width:0;padding:9px 11px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:var(--mono)" />
+          <button class="btn ghost" id="genViewerPass" style="padding:9px 12px" title="Generate a strong password">⟳</button>
+          <button class="btn" id="createViewerBtn" style="padding:9px 16px">Create viewer</button>
+        </div>
+        <div id="newViewerMsg" style="font-size:.82rem;margin-bottom:14px"></div>
+        <div id="adminList"></div>
+
+        <h3 style="font-size:1rem;margin:26px 0 8px">Workstation access <span style="font-size:.72rem;color:var(--ink3);font-weight:400">— owner only</span></h3>
+        <div style="color:var(--ink3);font-size:.8rem;margin-bottom:12px">
+          Every viewer sees all PCs by default, including ones enrolled later. Click a PC to block it for
+          that viewer — a blocked PC vanishes from their workstation list, live view, wall, activity history,
+          reports, recordings and alerts.
+        </div>
+        <div id="accessList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .view{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;flex-direction:column}
+  .view.open{display:flex}
+  .view-h{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .view-h h2{margin:0;font-size:1.1rem}
+  .view-h .spacer{flex:1}
+  .view-body{flex:1;overflow-y:auto;padding:18px}
+  .filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .filters select,.filters input{padding:7px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:.85rem}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi .v{font-family:var(--mono);font-size:1.6rem;font-weight:700}
+  .kpi .l{color:var(--ink3);font-size:.78rem;margin-top:2px}
+  .rep-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.rep-grid{grid-template-columns:1fr}}
+  .rep-panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .rep-panel h3{margin:0 0 12px;font-size:.95rem}
+  .brow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:.85rem}
+  .brow .nm{width:150px;flex:0 0 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+  .brow .track{flex:1;height:8px;background:var(--surface2);border-radius:5px;overflow:hidden}
+  .brow .track i{display:block;height:100%;border-radius:5px;background:var(--accent)}
+  .brow .track i.productive{background:var(--ok)} .brow .track i.unproductive{background:var(--warn)} .brow .track i.neutral{background:var(--info)}
+  .brow .ct{font-family:var(--mono);font-size:.78rem;color:var(--ink3);width:52px;text-align:right}
+  table.audit{width:100%;border-collapse:collapse;font-size:.84rem}
+  table.audit th{text-align:left;font-family:var(--mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);padding:8px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
+  table.audit td{padding:8px 10px;border-bottom:1px solid var(--surface2);color:var(--ink2);vertical-align:top}
+  table.audit td .act{font-family:var(--mono);font-size:.72rem;color:var(--accent);background:var(--surface2);padding:1px 7px;border-radius:5px}
+  .sess{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--surface)}
+  .sess:hover{border-color:var(--accent)}
+  .sess .mn{font-weight:600}
+  .sess .meta{color:var(--ink3);font-size:.78rem;font-family:var(--mono)}
+  .player{display:flex;flex-direction:column;gap:10px}
+  .player .stage{background:#000;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;min-height:340px;overflow:hidden}
+  .player .stage img{max-width:100%;max-height:70vh;object-fit:contain}
+  .player .controls{display:flex;align-items:center;gap:12px}
+  .player input[type=range]{flex:1}
+</style>
+
+<!-- Reports view -->
+<div id="reportsView" class="view">
+  <div class="view-h">
+    <h2>📊 Reports</h2>
+    <div class="filters">
+      <select id="repHost"><option value="">All workstations</option></select>
+      <label style="color:var(--ink3);font-size:.8rem;margin:0">From</label><input type="date" id="repFrom" />
+      <label style="color:var(--ink3);font-size:.8rem;margin:0">To</label><input type="date" id="repTo" />
+      <button class="btn" id="repRun" style="padding:6px 12px">Run</button>
+      <button class="btn ghost" id="repExport" style="padding:6px 12px">Export CSV</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="reportsClose" style="padding:6px 12px">Close</button>
+  </div>
+  <div class="view-body">
+    <div class="cards" id="repKpis"></div>
+    <div class="rep-grid">
+      <div class="rep-panel"><h3>Top applications</h3><div id="repApps"></div></div>
+      <div class="rep-panel"><h3>Top websites</h3><div id="repUrls"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Audit view -->
+<div id="auditView" class="view">
+  <div class="view-h">
+    <h2>📝 Admin audit trail</h2>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="auditRefresh" style="padding:6px 12px">Refresh</button>
+    <button class="btn ghost" id="auditClose" style="padding:6px 12px">Close</button>
+  </div>
+  <div class="view-body">
+    <table class="audit"><thead><tr><th>Time</th><th>Who</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead><tbody id="auditRows"></tbody></table>
+  </div>
+</div>
+
+<!-- Recordings view -->
+<div id="recordingsView" class="view">
+  <div class="view-h">
+    <h2>⏺ Recordings</h2>
+    <div class="filters"><select id="recHost"><option value="">All workstations</option></select>
+      <button class="btn ghost" id="recRefresh" style="padding:6px 12px">Refresh</button></div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="recBack" style="padding:6px 12px;display:none">← Sessions</button>
+    <button class="btn ghost" id="recordingsClose" style="padding:6px 12px">Close</button>
+  </div>
+  <div class="view-body">
+    <div id="recList"></div>
+    <div id="recPlayer" class="player hidden">
+      <div class="stage"><img id="recFrame" alt="recorded frame" /></div>
+      <div class="controls">
+        <button class="btn" id="recPlay" style="padding:6px 14px">▶ Play</button>
+        <span id="recPos" style="font-family:var(--mono);font-size:.8rem;color:var(--ink3);white-space:nowrap">0 / 0</span>
+        <input type="range" id="recSeek" min="0" value="0" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Alerts drawer -->
+<div id="alertsDrawer">
+  <div class="drawer">
+    <h2>Compliance Alerts <span class="spacer" style="flex:1"></span>
+      <button class="btn ghost" id="ackAllBtn" style="padding:4px 10px;font-size:.8rem;margin-right:8px">Acknowledge all</button>
+      <button class="btn ghost" id="alertsClose" style="padding:4px 10px;font-size:.8rem">Close</button></h2>
+    <div class="alerts" id="alerts"></div>
+  </div>
+</div>
+
+<script src="signalr.min.js"></script>
+<script src="app.js"></script>
+<script src="wall.js"></script>
+</body>
+</html>

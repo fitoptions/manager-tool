@@ -1,0 +1,28 @@
+[Unit]
+Description=Manager Tool server (ASP.NET Core, Kestrel loopback :5281)
+After=network.target
+
+[Service]
+# App is framework-dependent linux-x64 -> the box MUST have aspnetcore-runtime-8.0 installed.
+WorkingDirectory=/opt/app/app
+ExecStart=/usr/bin/dotnet /opt/app/app/ManagerTool.Server.dll
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+SyslogIdentifier=managertool
+
+# Least privilege: run as www-data (chown /opt/app to www-data first — see RUNBOOK step 5c).
+User=www-data
+Group=www-data
+
+# Production overrides in appsettings.Production.json are ONLY loaded when this is set.
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+# Gives DataProtection a stable key ring at /opt/app/.aspnet (persists across restarts).
+Environment=HOME=/opt/app
+
+# Kestrel binds 127.0.0.1:5281 (see appsettings.Production.json). nginx terminates TLS in front.
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,120 @@
+<Window x:Class="ManagerTool.Admin.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Manager Tool — Admin Console" Height="820" Width="1360"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized"
+        Background="#1B1B1B"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid Margin="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="SideColumn" Width="300" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: workstations (top) + activity (fills the rest), stacked -->
+        <Grid x:Name="SidePanel" Grid.Column="0" Margin="0,0,8,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="2*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="3*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,2,0,6">
+                <TextBlock Text="Workstations" FontWeight="Bold" Foreground="#EEE" VerticalAlignment="Center" Margin="2,0,0,0" />
+                <Button x:Name="RemoveAgentButton" Content="Remove agent…" HorizontalAlignment="Right"
+                        Height="24" FontSize="11" Padding="8,0" Foreground="#E0685C" Background="#2A1E1E"
+                        Click="RemoveAgentButton_Click" IsEnabled="False"
+                        ToolTip="Permanently uninstall the Manager Tool agent from the selected PC" />
+            </Grid>
+            <ListBox Grid.Row="1" x:Name="HostList" DisplayMemberPath="MachineName"
+                     SelectionChanged="HostList_SelectionChanged" />
+
+            <TextBlock Grid.Row="2" Text="Activity (focused app / window / URL)" FontWeight="Bold"
+                       Foreground="#EEE" Margin="2,10,0,6" />
+
+            <!-- Search + date-range filter -->
+            <Grid Grid.Row="3" Margin="0,0,0,6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" x:Name="SearchBox" Height="26" VerticalContentAlignment="Center"
+                             ToolTip="Search app, window title, or URL — press Enter"
+                             KeyDown="SearchBox_KeyDown" />
+                    <Button Grid.Column="1" Content="Search" Width="60" Height="26" Margin="4,0,0,0"
+                            Click="SearchButton_Click" />
+                </Grid>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,4,0,0">
+                    <TextBlock Text="From" Foreground="#BBB" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" />
+                    <DatePicker x:Name="FromDate" Width="104" Height="26" />
+                    <TextBlock Text="To" Foreground="#BBB" FontSize="11" VerticalAlignment="Center" Margin="8,0,4,0" />
+                    <DatePicker x:Name="ToDate" Width="104" Height="26" />
+                    <Button Content="Clear" Width="46" Height="26" Margin="6,0,0,0" Click="ClearFilterButton_Click" />
+                </StackPanel>
+            </Grid>
+
+            <DataGrid Grid.Row="4" x:Name="ActivityGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="11">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time" Binding="{Binding LocalTime}" Width="128" />
+                    <DataGridTextColumn Header="App" Binding="{Binding ProcessName}" Width="90" />
+                    <DataGridTextColumn Header="Window / URL" Binding="{Binding Detail}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,4,0,0">
+                <TextBlock x:Name="ResultCount" Foreground="#888" FontSize="11" VerticalAlignment="Center" />
+                <Button x:Name="LoadMoreButton" Content="Load more" Height="24" FontSize="11" Margin="10,0,0,0"
+                        Click="LoadMoreButton_Click" IsEnabled="False" Visibility="Collapsed" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Right: live screen, dominant -->
+        <DockPanel Grid.Column="1">
+            <StackPanel x:Name="Toolbar" DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="Live Screen" FontWeight="Bold" Foreground="#EEE"
+                           VerticalAlignment="Center" />
+                <Button x:Name="ViewButton" Content="View" Width="64" Height="28" Margin="12,0,0,0"
+                        Click="ViewButton_Click" IsEnabled="False" />
+                <Button x:Name="StopButton" Content="Stop" Width="64" Height="28" Margin="6,0,0,0"
+                        Click="StopButton_Click" IsEnabled="False" />
+                <Button x:Name="RecordButton" Content="● Rec" Width="76" Height="28" Margin="6,0,0,0"
+                        Click="RecordButton_Click" IsEnabled="False" Foreground="#C0392B" />
+                <TextBlock Text="Monitor" VerticalAlignment="Center" Foreground="#EEE" Margin="16,0,4,0" />
+                <ComboBox x:Name="MonitorSelector" Width="80" Height="28"
+                          SelectionChanged="MonitorSelector_SelectionChanged" />
+                <Button x:Name="FullScreenButton" Content="⛶  Full screen" Width="130" Height="28" Margin="16,0,0,0"
+                        Click="FullScreenButton_Click" IsEnabled="False" />
+                <Button x:Name="AlertsButton" Height="28" Margin="16,0,0,0" Padding="10,0"
+                        Click="AlertsButton_Click" Background="#3A2A2A" Foreground="#EEE">
+                    <TextBlock><Run Text="⚠ Alerts"/><Run x:Name="AlertBadge" Text="" FontWeight="Bold" Foreground="#E0685C"/></TextBlock>
+                </Button>
+                <Button x:Name="AccessButton" Height="28" Margin="6,0,0,0" Padding="10,0"
+                        Click="AccessButton_Click" Visibility="Collapsed"
+                        ToolTip="Issue viewer sign-ins and choose which PCs each may see (owner only)">
+                    <TextBlock><Run Text="🔐  Access"/><Run x:Name="ResetBadge" Text="" FontWeight="Bold" Foreground="#D7A53E"/></TextBlock>
+                </Button>
+                <Button x:Name="AccountButton" Content="⚙  My account" Height="28" Margin="6,0,0,0" Padding="10,0"
+                        Click="AccountButton_Click"
+                        ToolTip="Change my own password" />
+                <TextBlock x:Name="ViewersText" VerticalAlignment="Center" Foreground="#2CB0C2"
+                           FontSize="11.5" Margin="14,0,0,0" />
+                <TextBlock x:Name="HintText" VerticalAlignment="Center" Foreground="#888" Margin="14,0,0,0"
+                           Text="Double-click screen = full screen · Esc exits" />
+            </StackPanel>
+            <Border BorderBrush="#555" BorderThickness="1" Background="#000">
+                <Image x:Name="ScreenImage" Stretch="Uniform" StretchDirection="Both"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       MouseLeftButtonDown="ScreenImage_MouseDown" />
+            </Border>
+        </DockPanel>
+    </Grid>
+</Window>

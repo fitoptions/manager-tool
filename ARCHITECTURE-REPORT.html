@@ -1,0 +1,622 @@
+<title>ManagerTool Architecture Dossier</title>
+<style>
+  /* ---------- Token system: light on bare :root, dark via media + [data-theme] ---------- */
+  :root{
+    --bg:#E9EDF1; --surface:#FFFFFF; --surface-2:#F4F7F9; --panel:#0E1519;
+    --ink:#141A1F; --ink-2:#48555F; --ink-3:#6C7A85; --line:#D6DDE3; --line-2:#E7ECF0;
+    --accent:#0E7A8C; --accent-2:#0A5A68; --accent-soft:#DCEEF1;
+    --ok:#1C8A56; --warn:#9A6B12; --crit:#B23A2E;
+    --panel-ink:#D3DEE4; --panel-ink-2:#7F929D; --panel-line:#243139; --panel-accent:#39B9CB;
+    --shadow:0 1px 2px rgba(16,24,32,.05),0 8px 24px rgba(16,24,32,.06);
+    --mono:"Cascadia Code","SF Mono",ui-monospace,"JetBrains Mono",Consolas,monospace;
+    --sans:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,"Helvetica Neue",Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0C1013; --surface:#141A1F; --surface-2:#1A222A; --panel:#0A0F12;
+      --ink:#E7ECEF; --ink-2:#9AA6B0; --ink-3:#71808B; --line:#26313A; --line-2:#1E272E;
+      --accent:#2CB0C2; --accent-2:#7FD6E1; --accent-soft:#10262B;
+      --ok:#38B87E; --warn:#D7A53E; --crit:#E0685C;
+      --panel-ink:#CDD9DF; --panel-ink-2:#75888F; --panel-line:#1E2A31; --panel-accent:#39B9CB;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0C1013; --surface:#141A1F; --surface-2:#1A222A; --panel:#0A0F12;
+    --ink:#E7ECEF; --ink-2:#9AA6B0; --ink-3:#71808B; --line:#26313A; --line-2:#1E272E;
+    --accent:#2CB0C2; --accent-2:#7FD6E1; --accent-soft:#10262B;
+    --ok:#38B87E; --warn:#D7A53E; --crit:#E0685C;
+    --panel-ink:#CDD9DF; --panel-ink-2:#75888F; --panel-line:#1E2A31; --panel-accent:#39B9CB;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px; margin:0 auto; padding:0 24px}
+  @media(max-width:640px){ .wrap{padding:0 16px} body{font-size:15px} }
+
+  /* ---------- Typographic system ---------- */
+  h2,h3,h4{line-height:1.25; text-wrap:balance; letter-spacing:-.01em}
+  h2{font-size:1.62rem; margin:0 0 4px; font-weight:700}
+  h3{font-size:1.16rem; margin:0 0 10px; font-weight:650}
+  h4{font-size:.98rem; margin:0 0 6px; font-weight:650}
+  p{margin:0 0 14px; max-width:68ch}
+  a{color:var(--accent); text-decoration:none}
+  .eyebrow{
+    font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 10px;
+  }
+  code,.mono{font-family:var(--mono); font-size:.86em}
+  code{background:var(--surface-2); border:1px solid var(--line-2); border-radius:5px; padding:.06em .38em; color:var(--ink)}
+
+  /* ---------- Header ---------- */
+  header.masthead{
+    border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(120% 140% at 90% -20%, var(--accent-soft) 0%, transparent 55%),
+      var(--surface);
+  }
+  .masthead .wrap{padding-top:40px; padding-bottom:34px}
+  .kicker{display:flex; align-items:center; gap:10px; margin-bottom:22px}
+  .glyph{width:26px; height:26px; flex:0 0 auto}
+  .kicker .name{font-family:var(--mono); font-weight:700; letter-spacing:.06em; font-size:.9rem}
+  .kicker .tag{
+    font-family:var(--mono); font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:2px 9px; margin-left:2px;
+  }
+  h1{
+    font-size:clamp(2.1rem,5.4vw,3.3rem); line-height:1.04; margin:0 0 14px;
+    font-weight:750; letter-spacing:-.025em; text-wrap:balance;
+  }
+  .lede{font-size:1.12rem; color:var(--ink-2); max-width:60ch; margin:0}
+  .statusline{
+    display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:24px;
+    font-family:var(--mono); font-size:.76rem;
+  }
+  .chip{
+    display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:7px;
+    background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2);
+  }
+  .chip b{color:var(--ink); font-weight:600}
+  .dot{width:7px; height:7px; border-radius:50%; flex:0 0 auto}
+  .dot.live{background:var(--ok); box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+
+  /* ---------- Section rhythm ---------- */
+  section{padding:40px 0; border-bottom:1px solid var(--line-2)}
+  section:last-of-type{border-bottom:0}
+  .sec-head{margin-bottom:24px}
+
+  /* ---------- Metric tiles ---------- */
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px}
+  .tile{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:16px 16px 14px; box-shadow:var(--shadow); position:relative; overflow:hidden;
+  }
+  .tile::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent); opacity:.85}
+  .tile .val{font-family:var(--mono); font-size:1.5rem; font-weight:700; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+  .tile .lab{font-size:.78rem; color:var(--ink-3); margin-top:3px; line-height:1.35}
+
+  /* ---------- Cards ---------- */
+  .grid2{display:grid; grid-template-columns:repeat(2,1fr); gap:16px}
+  @media(max-width:720px){ .grid2{grid-template-columns:1fr} }
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:20px 20px 18px; box-shadow:var(--shadow);
+  }
+  .card .role{font-family:var(--mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:8px}
+  .card ul{margin:10px 0 0; padding-left:18px}
+  .card li{margin:4px 0; color:var(--ink-2); font-size:.93rem}
+  .card li b{color:var(--ink); font-weight:600}
+
+  /* ---------- Figures / diagrams ---------- */
+  figure{margin:6px 0 4px; padding:22px 18px 14px; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow)}
+  figure svg{display:block; width:100%; height:auto; color:var(--ink-2)}
+  figcaption{font-size:.84rem; color:var(--ink-3); margin-top:12px; text-align:center; font-family:var(--mono)}
+  .flow-accent{color:var(--accent)}
+
+  /* ---------- Terminal / code panels (fixed dark in both themes, on purpose) ---------- */
+  .panel{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:12px;
+    overflow:hidden; margin:8px 0 4px;
+  }
+  .panel .bar{display:flex; align-items:center; gap:7px; padding:9px 13px; border-bottom:1px solid var(--panel-line)}
+  .panel .bar i{width:10px; height:10px; border-radius:50%; background:var(--panel-line)}
+  .panel .bar .t{margin-left:8px; font-family:var(--mono); font-size:.72rem; color:var(--panel-ink-2); letter-spacing:.04em}
+  .panel pre{margin:0; padding:14px 16px; overflow-x:auto; font-family:var(--mono); font-size:.8rem; line-height:1.65; color:var(--panel-ink)}
+  .panel pre .c{color:var(--panel-ink-2)}
+  .panel pre .k{color:var(--panel-accent)}
+
+  /* ---------- Tables ---------- */
+  .tbl-scroll{overflow-x:auto; border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow)}
+  table{border-collapse:collapse; width:100%; font-size:.9rem; background:var(--surface); min-width:520px}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line-2); vertical-align:top}
+  thead th{
+    font-family:var(--mono); font-size:.68rem; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-3); background:var(--surface-2); font-weight:600; position:sticky; top:0;
+  }
+  tbody tr:last-child td{border-bottom:0}
+  td.mono,td .mono{font-family:var(--mono); font-size:.82rem; font-variant-numeric:tabular-nums}
+  .pill{display:inline-block; font-family:var(--mono); font-size:.7rem; padding:2px 8px; border-radius:999px; font-weight:600; letter-spacing:.02em}
+  .pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent); color:var(--ok)}
+  .pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent); color:var(--warn)}
+  .pill.crit{background:color-mix(in srgb,var(--crit) 16%,transparent); color:var(--crit)}
+
+  /* ---------- Callouts ---------- */
+  .note{border-left:3px solid var(--accent); background:var(--surface-2); border-radius:0 10px 10px 0; padding:14px 16px; margin:16px 0; font-size:.92rem; color:var(--ink-2)}
+  .note.warn{border-left-color:var(--warn)}
+  .note b{color:var(--ink)}
+
+  .lead-list{list-style:none; padding:0; margin:0; display:grid; gap:10px}
+  .lead-list li{display:flex; gap:12px; align-items:flex-start; font-size:.95rem; color:var(--ink-2)}
+  .lead-list .m{font-family:var(--mono); color:var(--accent); font-size:.8rem; flex:0 0 auto; margin-top:2px}
+  .lead-list b{color:var(--ink)}
+
+  footer{padding:34px 0 60px; color:var(--ink-3); font-size:.82rem; font-family:var(--mono)}
+  .two-col{columns:2; column-gap:34px}
+  @media(max-width:680px){ .two-col{columns:1} }
+  .two-col p{break-inside:avoid}
+</style>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="kicker">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" style="color:var(--accent)">
+        <rect x="2.5" y="4" width="19" height="13" rx="1.6"/><path d="M8 20.5h8M12 17.5v3"/>
+        <circle cx="12" cy="10.5" r="2.4"/><path d="M4.7 10.5c2-3.4 12.6-3.4 14.6 0"/>
+      </svg>
+      <span class="name">ManagerTool</span>
+      <span class="tag">Architecture Dossier</span>
+    </div>
+    <h1>Transparent desk monitoring, end to end.</h1>
+    <p class="lede">A disclosed, company-owned monitoring platform for a multi-trader prop desk — activity and on-demand screen, streamed over the internet from each office PC to one central server, with a security model built for audit.</p>
+    <div class="statusline">
+      <span class="chip"><span class="dot live"></span> <b>LIVE</b> · production</span>
+      <span class="chip">endpoint <b>your-old-server.example.com</b></span>
+      <span class="chip">.NET&nbsp;8 · WPF · ASP.NET&nbsp;Core · SignalR</span>
+      <span class="chip">rev <b>as-built 2026-08-17</b></span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- AT A GLANCE -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">System at a glance</p>
+      <h2>The whole platform in twelve numbers</h2>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="val">4</div><div class="lab">projects — Shared, Server, Agent, Admin</div></div>
+      <div class="tile"><div class="val">3</div><div class="lab">runtime roles — agent, admin, server</div></div>
+      <div class="tile"><div class="val">2</div><div class="lab">JWT roles, cryptographically separated</div></div>
+      <div class="tile"><div class="val">443</div><div class="lab">only inbound port on the server (TLS)</div></div>
+      <div class="tile"><div class="val">5281</div><div class="lab">server loopback port behind nginx</div></div>
+      <div class="tile"><div class="val">0</div><div class="lab">keystrokes captured — by design</div></div>
+      <div class="tile"><div class="val">4&nbsp;fps</div><div class="lab">screen capture, on-demand only</div></div>
+      <div class="tile"><div class="val">100k</div><div class="lab">PBKDF2 iterations on admin passwords</div></div>
+      <div class="tile"><div class="val">90d</div><div class="lab">activity retention (recordings 30d)</div></div>
+      <div class="tile"><div class="val">50k</div><div class="lab">events buffered offline per agent</div></div>
+      <div class="tile"><div class="val">auto</div><div class="lab">start on boot — agent &amp; server</div></div>
+      <div class="tile"><div class="val">Mumbai</div><div class="lab">Hostinger KVM VPS, Ubuntu 24.04</div></div>
+    </div>
+  </section>
+
+  <!-- WHAT IT IS -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Executive summary</p>
+      <h2>What ManagerTool is, and what it deliberately is not</h2>
+    </div>
+    <p>ManagerTool monitors company-owned trading workstations to enforce strategy compliance and acceptable-use policy. A lightweight <b>agent</b> runs on every office PC and continuously reports a compact record of <b>what application, window, and website is in focus</b>. On demand — and only while an operator is actually watching — the agent also streams the <b>live screen</b>, which can be recorded to disk. A desk head runs the <b>admin console</b> to watch any workstation over the internet.</p>
+    <div class="grid2" style="margin-top:6px">
+      <div class="card">
+        <div class="role">Design commitments</div>
+        <ul>
+          <li><b>Transparent, not covert.</b> The agent shows a persistent tray icon and a first-run disclosure; it runs as the logged-in user with no elevation — not a rootkit.</li>
+          <li><b>No keylogger.</b> Keystrokes are never captured. The activity signal is focus metadata (app / window title / URL), so the log store never becomes a credential honeypot.</li>
+          <li><b>Screen capture is pull, not push.</b> A PC captures its display only while an admin is viewing or recording it — never continuous background surveillance.</li>
+          <li><b>Internet-native.</b> Agents make only outbound connections, so PCs on separate leased lines need no inbound firewall holes.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="role">Out of scope by choice</div>
+        <ul>
+          <li><b>Keystroke / clipboard capture</b> — excluded to avoid harvesting passwords and personal data.</li>
+          <li><b>Network interception</b> — the URL is read passively from the browser's address bar via UI Automation, not by decrypting traffic.</li>
+          <li><b>Silent operation</b> — the agent refuses to hide; the disclosure is part of the product.</li>
+          <li><b>Order-path access</b> — ManagerTool observes; it never touches trades or the OMS.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOPOLOGY -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Deployment topology</p>
+      <h2>How the pieces connect over the internet</h2>
+    </div>
+    <figure>
+      <svg viewBox="0 0 920 340" role="img" aria-label="Office PCs run agents that make outbound HTTPS and WebSocket connections over the internet to a Hostinger VPS, where nginx terminates TLS and reverse-proxies to the ManagerTool server on loopback port 5281, which persists to SQLite and a recordings folder. The admin console connects the same way.">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8 4.5 L0.5 8.5 Z" fill="var(--accent)"/></marker>
+          <marker id="ahg" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8 4.5 L0.5 8.5 Z" fill="currentColor"/></marker>
+        </defs>
+        <!-- Office PCs -->
+        <g font-family="var(--mono)" font-size="11">
+          <rect x="14" y="70" width="150" height="200" rx="10" fill="none" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="89" y="60" text-anchor="middle" fill="currentColor" font-size="12">Office PCs · leased lines</text>
+          <g>
+            <rect x="34" y="92" width="110" height="40" rx="7" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".45"/>
+            <text x="89" y="110" text-anchor="middle" fill="var(--ink)">Agent</text><text x="89" y="123" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9.5">DESKTOP-01</text>
+          </g>
+          <g>
+            <rect x="34" y="140" width="110" height="40" rx="7" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".45"/>
+            <text x="89" y="158" text-anchor="middle" fill="var(--ink)">Agent</text><text x="89" y="171" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9.5">DESKTOP-02</text>
+          </g>
+          <g>
+            <rect x="34" y="188" width="110" height="40" rx="7" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".45"/>
+            <text x="89" y="206" text-anchor="middle" fill="var(--ink)">Agent</text><text x="89" y="219" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9.5">DESKTOP-N</text>
+          </g>
+          <text x="89" y="250" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9.5">tray notice · no elevation</text>
+        </g>
+
+        <!-- Internet -->
+        <g font-family="var(--mono)" font-size="11">
+          <path d="M210 130 q40 -18 80 0 q40 18 80 0" fill="none" stroke="currentColor" stroke-opacity=".35"/>
+          <text x="290" y="118" text-anchor="middle" fill="currentColor" fill-opacity=".8">internet</text>
+        </g>
+        <!-- arrows PCs -> VPS -->
+        <line x1="168" y1="150" x2="404" y2="150" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#ah)"/>
+        <text x="286" y="165" text-anchor="middle" font-family="var(--mono)" font-size="10" fill="var(--accent)">outbound HTTPS / WSS :443</text>
+
+        <!-- VPS -->
+        <g font-family="var(--mono)" font-size="11">
+          <rect x="408" y="46" width="330" height="248" rx="12" fill="none" stroke="var(--accent)" stroke-opacity=".55"/>
+          <text x="573" y="36" text-anchor="middle" fill="currentColor" font-size="12">Hostinger VPS · Ubuntu 24.04 · Mumbai</text>
+
+          <rect x="430" y="66" width="286" height="44" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-opacity=".5"/>
+          <text x="573" y="84" text-anchor="middle" fill="var(--ink)">nginx  ·  TLS termination  :443</text>
+          <text x="573" y="99" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9.5">Let's Encrypt cert · your-old-server.example.com</text>
+
+          <line x1="573" y1="110" x2="573" y2="132" stroke="currentColor" stroke-width="1.4" marker-end="url(#ahg)"/>
+          <text x="640" y="126" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9">proxy → 127.0.0.1</text>
+
+          <rect x="430" y="134" width="286" height="52" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".45"/>
+          <text x="573" y="154" text-anchor="middle" fill="var(--ink)">ManagerTool server · Kestrel :5281</text>
+          <text x="573" y="169" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9.5">SignalR hub · JWT auth · systemd service</text>
+
+          <line x1="503" y1="186" x2="503" y2="212" stroke="currentColor" stroke-width="1.3" marker-end="url(#ahg)"/>
+          <line x1="643" y1="186" x2="643" y2="212" stroke="currentColor" stroke-width="1.3" marker-end="url(#ahg)"/>
+          <rect x="430" y="214" width="140" height="46" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".45"/>
+          <text x="500" y="233" text-anchor="middle" fill="var(--ink)">SQLite</text><text x="500" y="247" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9">activity stream</text>
+          <rect x="576" y="214" width="140" height="46" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".45"/>
+          <text x="646" y="233" text-anchor="middle" fill="var(--ink)">recordings/</text><text x="646" y="247" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9">JPEG + manifest</text>
+        </g>
+
+        <!-- Admin console -->
+        <g font-family="var(--mono)" font-size="11">
+          <rect x="760" y="120" width="146" height="60" rx="10" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".45"/>
+          <text x="833" y="146" text-anchor="middle" fill="var(--ink)">Admin console</text>
+          <text x="833" y="162" text-anchor="middle" fill="currentColor" fill-opacity=".7" font-size="9.5">desk head · WPF</text>
+        </g>
+        <line x1="760" y1="150" x2="742" y2="150" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#ah)"/>
+        <line x1="742" y1="150" x2="758" y2="150" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#ah)" opacity="0"/>
+      </svg>
+      <figcaption>Agents and the console both reach the server only through nginx on :443 — the single inbound port. The server itself listens on loopback :5281.</figcaption>
+    </figure>
+    <div class="note"><b>Why this shape.</b> Each office PC is on its own leased line, not a shared LAN. Because every agent connection is <b>outbound</b>, no office PC needs an inbound firewall rule — the only publicly reachable surface is one TLS port on the VPS.</div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Component architecture</p>
+      <h2>Four projects, one contract</h2>
+    </div>
+    <p>All four .NET&nbsp;8 projects share a single contracts assembly, so the wire protocol is type-checked at compile time across agent, server, and console.</p>
+    <div class="grid2">
+      <div class="card">
+        <div class="role">ManagerTool.Shared · contracts</div>
+        <h4>The single source of truth for the wire</h4>
+        <ul>
+          <li>DTOs: <code>HostInfo</code>, <code>ActivityEvent</code>, <code>ScreenFrame</code>, auth records.</li>
+          <li>Strongly-typed hub interfaces: <code>IMonitorHub</code>, <code>IAgentClient</code>, <code>IAdminClient</code>.</li>
+          <li><code>HubRoutes</code> (hub path <code>/hub</code>, groups) and <code>Roles</code> constants.</li>
+          <li><code>MonitoringNotice</code> — the disclosure text, kept in one place.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="role">ManagerTool.Server · ASP.NET Core</div>
+        <h4>Central relay, store, and query API</h4>
+        <ul>
+          <li><b>MonitorHub</b> — authenticated SignalR relay; every method role-gated.</li>
+          <li><b>ActivityStore</b> — SQLite persistence, parameterized queries.</li>
+          <li><b>TokenService / PasswordHasher</b> — JWT issuance, PBKDF2 hashing.</li>
+          <li><b>Recorder + RetentionService</b> — on-disk recording, timed purges.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="role">ManagerTool.Agent · WPF tray app</div>
+        <h4>The monitored-endpoint component</h4>
+        <ul>
+          <li><b>ActiveWindowWatcher</b> — polls foreground window every 1.5s, emits on change.</li>
+          <li><b>BrowserUrlReader</b> — passive address-bar read via UI Automation.</li>
+          <li><b>ScreenCapturer</b> — multi-monitor GDI capture, on-demand only.</li>
+          <li><b>ActivityBuffer</b> — durable offline queue; auto-start via registry.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="role">ManagerTool.Admin · WPF console</div>
+        <h4>The operator's control surface</h4>
+        <ul>
+          <li>Password login → admin JWT; loads connected hosts on sign-in.</li>
+          <li>Per-host activity timeline (history + live).</li>
+          <li>Live screen view with per-monitor selection and full-screen mode.</li>
+          <li>One-click session recording to the server.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA FLOWS -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Data &amp; control flows</p>
+      <h2>How a keystroke-free signal reaches the desk head</h2>
+    </div>
+
+    <h3 style="margin-top:6px">1 · Always-on activity stream</h3>
+    <figure>
+      <svg viewBox="0 0 920 132" role="img" aria-label="The agent's window watcher raises a focus-change event, which is written to a durable disk buffer, then pushed over SignalR to the hub. The hub inserts it into SQLite and simultaneously relays it live to the admin console.">
+        <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8 4.5 L0.5 8.5 Z" fill="var(--accent)"/></marker></defs>
+        <g font-family="var(--mono)" font-size="10.5" text-anchor="middle">
+          <rect x="10" y="40" width="150" height="52" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="85" y="62" fill="var(--ink)">ActiveWindowWatcher</text><text x="85" y="77" fill="currentColor" fill-opacity=".7">focus change → event</text>
+          <rect x="210" y="40" width="140" height="52" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="280" y="62" fill="var(--ink)">ActivityBuffer</text><text x="280" y="77" fill="currentColor" fill-opacity=".7">durable JSONL, disk</text>
+          <rect x="400" y="40" width="140" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-opacity=".5"/>
+          <text x="470" y="62" fill="var(--ink)">MonitorHub</text><text x="470" y="77" fill="currentColor" fill-opacity=".7">PushActivity</text>
+          <rect x="590" y="8" width="150" height="46" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="665" y="27" fill="var(--ink)">SQLite</text><text x="665" y="42" fill="currentColor" fill-opacity=".7">insert (persist)</text>
+          <rect x="590" y="78" width="150" height="46" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="665" y="97" fill="var(--ink)">Admin console</text><text x="665" y="112" fill="currentColor" fill-opacity=".7">live relay</text>
+          <line x1="160" y1="66" x2="206" y2="66" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="350" y1="66" x2="396" y2="66" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="540" y1="58" x2="586" y2="38" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="540" y1="74" x2="586" y2="98" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a2)"/>
+        </g>
+      </svg>
+      <figcaption>Durable-first: every event is written to disk <span class="flow-accent">before</span> send, drained oldest-first, and removed only once the server acknowledges it.</figcaption>
+    </figure>
+
+    <h3 style="margin-top:22px">2 · On-demand screen streaming — reference-counted</h3>
+    <figure>
+      <svg viewBox="0 0 920 150" role="img" aria-label="When the admin clicks View, the hub increments a per-host viewer count; the first viewer causes the hub to tell the agent to begin capturing. The agent streams JPEG frames per monitor back through the hub to the admin. Clicking Stop decrements the count; the last viewer leaving tells the agent to stop capturing.">
+        <defs><marker id="a3" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8 4.5 L0.5 8.5 Z" fill="var(--accent)"/></marker>
+          <marker id="a3b" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8 4.5 L0.5 8.5 Z" fill="currentColor"/></marker></defs>
+        <g font-family="var(--mono)" font-size="10.5" text-anchor="middle">
+          <rect x="12" y="50" width="150" height="52" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="87" y="72" fill="var(--ink)">Admin console</text><text x="87" y="87" fill="currentColor" fill-opacity=".7">View / Stop</text>
+          <rect x="385" y="50" width="150" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-opacity=".5"/>
+          <text x="460" y="70" fill="var(--ink)">MonitorHub</text><text x="460" y="85" fill="currentColor" fill-opacity=".7">viewer refcount</text>
+          <rect x="758" y="50" width="150" height="52" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="833" y="70" fill="var(--ink)">ScreenCapturer</text><text x="833" y="85" fill="currentColor" fill-opacity=".7">agent · 4 fps</text>
+          <!-- top arrows: start viewing -->
+          <line x1="162" y1="66" x2="381" y2="66" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a3)"/>
+          <text x="270" y="58" fill="var(--accent)">StartViewing →</text>
+          <line x1="535" y1="66" x2="754" y2="66" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a3)"/>
+          <text x="645" y="58" fill="var(--accent)">0→1: BeginScreenStream</text>
+          <!-- bottom arrows: frames back -->
+          <line x1="754" y1="90" x2="535" y2="90" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3b)"/>
+          <text x="645" y="112" fill="currentColor" fill-opacity=".75">PushFrame (per monitor)</text>
+          <line x1="381" y1="90" x2="162" y2="90" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3b)"/>
+          <text x="270" y="112" fill="currentColor" fill-opacity=".75">FrameReceived</text>
+          <text x="460" y="130" fill="currentColor" fill-opacity=".6">Stop → 1→0 → EndScreenStream (capture halts)</text>
+        </g>
+      </svg>
+      <figcaption>The agent captures its screen <span class="flow-accent">only</span> while the viewer count is above zero. No watcher, no capture — a privacy property enforced in code.</figcaption>
+    </figure>
+
+    <h3 style="margin-top:22px">3 · Authentication &amp; enrollment</h3>
+    <figure>
+      <svg viewBox="0 0 920 160" role="img" aria-label="The agent posts a pre-shared enrollment key to the enroll endpoint and receives a 30-day agent JWT. The admin posts username and password to the login endpoint and receives a 60-minute admin JWT. Both present their token to the hub, which authorizes each method by role.">
+        <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto"><path d="M0.5 0.5 L8 4.5 L0.5 8.5 Z" fill="var(--accent)"/></marker></defs>
+        <g font-family="var(--mono)" font-size="10.5" text-anchor="middle">
+          <rect x="12" y="16" width="150" height="46" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="87" y="34" fill="var(--ink)">Agent</text><text x="87" y="49" fill="currentColor" fill-opacity=".7">enrollment key</text>
+          <rect x="12" y="98" width="150" height="46" rx="8" fill="var(--surface-2)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="87" y="116" fill="var(--ink)">Admin</text><text x="87" y="131" fill="currentColor" fill-opacity=".7">username + password</text>
+          <rect x="352" y="16" width="196" height="46" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="450" y="34" fill="var(--ink)">POST /api/auth/enroll</text><text x="450" y="49" fill="currentColor" fill-opacity=".7">constant-time key check</text>
+          <rect x="352" y="98" width="196" height="46" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity=".4"/>
+          <text x="450" y="116" fill="var(--ink)">POST /api/auth/login</text><text x="450" y="131" fill="currentColor" fill-opacity=".7">PBKDF2 verify</text>
+          <rect x="726" y="52" width="182" height="56" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-opacity=".55"/>
+          <text x="817" y="74" fill="var(--ink)">MonitorHub</text><text x="817" y="90" fill="currentColor" fill-opacity=".75">[Authorize(Roles=…)]</text>
+          <line x1="162" y1="39" x2="348" y2="39" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a4)"/>
+          <line x1="162" y1="121" x2="348" y2="121" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a4)"/>
+          <line x1="548" y1="39" x2="724" y2="66" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a4)"/>
+          <text x="648" y="40" fill="var(--accent)">JWT · agent · 30d</text>
+          <line x1="548" y1="121" x2="724" y2="94" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a4)"/>
+          <text x="648" y="132" fill="var(--accent)">JWT · admin · 60m</text>
+        </g>
+      </svg>
+      <figcaption>Agents can only push; admins can only view/record. The hub enforces this per method from the token's role claim — a rogue agent token cannot watch a screen.</figcaption>
+    </figure>
+  </section>
+
+  <!-- SECURITY -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Security architecture</p>
+      <h2>Built to survive an audit</h2>
+    </div>
+    <ul class="lead-list" style="margin-bottom:20px">
+      <li><span class="m">TLS</span><span><b>Encrypted in transit, everywhere.</b> nginx terminates a Let's Encrypt certificate for <code>your-old-server.example.com</code>; agents verify the real certificate (the dev-only bypass is off in production config).</span></li>
+      <li><span class="m">JWT</span><span><b>Two cryptographic roles.</b> Tokens are HMAC-SHA256 signed, issuer/audience/lifetime validated with a tight 30-second clock skew. Admin tokens live 60 minutes; agent tokens 30 days.</span></li>
+      <li><span class="m">PBKDF2</span><span><b>Passwords never stored in plaintext.</b> 100,000 iterations of PBKDF2-SHA256, 16-byte random per-password salt, 32-byte output, constant-time verification. A CLI mints the hash; the plaintext never touches the server.</span></li>
+      <li><span class="m">RBAC</span><span><b>Every hub method is role-gated.</b> Group membership derives from the authenticated role claim, not client-supplied hints — a rogue agent cannot join the admin broadcast group.</span></li>
+      <li><span class="m">KEY</span><span><b>Agent enrollment is a pre-shared secret</b>, compared in constant time and rejected when unset — no blank-key bypass.</span></li>
+      <li><span class="m">PRIV</span><span><b>Privacy is structural.</b> No keystrokes, passive URL reads, and screen capture gated on an active viewer. The most sensitive artifact — recordings — has the shortest retention.</span></li>
+    </ul>
+    <div class="note warn"><b>For the security review.</b> Three items are deliberately left for your ISA to close before go-live, and are documented as such: <b>(1)</b> shipped config secrets are <code>CHANGE-ME</code> placeholders that must be replaced; <b>(2)</b> there is no token revocation list — a leaked agent token is valid until its 30-day expiry (rotate keys to invalidate); <b>(3)</b> no rate-limiting / lockout on the auth endpoints yet. None are hidden; all are surfaced in the deployment notes.</div>
+  </section>
+
+  <!-- DATA MODEL -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Data model &amp; storage</p>
+      <h2>What is stored, where, and for how long</h2>
+    </div>
+    <div class="grid2" style="margin-bottom:18px">
+      <div>
+        <h4>Activity — SQLite table <code>activity</code></h4>
+        <div class="panel">
+          <div class="bar"><i></i><i></i><i></i><span class="t">schema · managertool.db</span></div>
+<pre><span class="k">id</span>            INTEGER PK AUTOINCREMENT
+<span class="k">host_id</span>       TEXT  NOT NULL
+<span class="k">ts_utc</span>        TEXT  NOT NULL   <span class="c">// ISO-8601 "o"</span>
+<span class="k">process_name</span>  TEXT  NOT NULL
+<span class="k">window_title</span>  TEXT  NOT NULL
+<span class="k">url</span>           TEXT             <span class="c">// nullable</span>
+<span class="k">activity_kind</span> TEXT  NOT NULL
+<span class="c">INDEX ix_activity_host_ts (host_id, ts_utc)</span></pre>
+        </div>
+      </div>
+      <div>
+        <h4>Recordings — on disk, opt-in per session</h4>
+        <div class="panel">
+          <div class="bar"><i></i><i></i><i></i><span class="t">recordings/ layout</span></div>
+<pre>{hostId}/{yyyyMMdd-HHmmss}/
+  <span class="k">frame-000001-mon0.jpg</span>
+  <span class="k">frame-000002-mon0.jpg</span>
+  ...
+  <span class="k">manifest.json</span>  <span class="c">// startedBy, start/end,</span>
+                 <span class="c">// frameCount, complete</span></pre>
+        </div>
+      </div>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Data class</th><th>Store</th><th>Written when</th><th>Retention (default)</th><th>Sensitivity</th></tr></thead>
+        <tbody>
+          <tr><td><b>Activity events</b></td><td class="mono">SQLite</td><td>continuously, per focus change</td><td class="mono">90 days</td><td><span class="pill ok">metadata</span></td></tr>
+          <tr><td><b>Screen frames (live)</b></td><td class="mono">— none —</td><td>relayed only, never persisted</td><td class="mono">n/a</td><td><span class="pill ok">ephemeral</span></td></tr>
+          <tr><td><b>Recorded sessions</b></td><td class="mono">disk / JPEG</td><td>only during explicit admin recording</td><td class="mono">30 days</td><td><span class="pill warn">screen imagery</span></td></tr>
+          <tr><td><b>Credentials</b></td><td class="mono">config</td><td>PBKDF2 hash only; secrets in env/secret store</td><td class="mono">n/a</td><td><span class="pill crit">restricted</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px">A background <code>RetentionService</code> sweeps both stores every 6 hours (floored at 1 hour), purging anything past its window. In-progress recordings are protected — purge keys off last-write time, never deleting a session still being written.</p>
+  </section>
+
+  <!-- RELIABILITY -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Reliability &amp; availability</p>
+      <h2>It stays up, and it loses nothing</h2>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="role">Auto-start · survives every reboot</div>
+        <ul>
+          <li><b>Agent:</b> registered under <code>HKLM\…\Run\ManagerToolAgent</code> — launches at every user logon, no manual step.</li>
+          <li><b>Server:</b> installed as a Linux <code>systemd</code> service (<code>managertool</code>) — starts on boot, restarts on crash.</li>
+          <li><b>nginx &amp; TLS renewal:</b> system services; certificate auto-renews.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="role">No data loss on outage</div>
+        <ul>
+          <li><b>Durable offline buffer:</b> up to 50,000 events persisted to disk on each agent, replayed <b>in order</b> on reconnect.</li>
+          <li><b>Auto-reconnect</b> with token refresh one minute before expiry.</li>
+          <li><b>Bounded:</b> when full, the oldest events drop — disk use can't run away during a long outage.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note"><b>Failure isolation.</b> A frame that can't be written (full disk, locked file) is dropped rather than killing the live relay; a retention sweep that fails logs and retries next interval; a corrupt buffer file starts clean instead of crashing the agent. No single failure takes the system down.</div>
+  </section>
+
+  <!-- LIVE DEPLOYMENT -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">As-built deployment</p>
+      <h2>The live production stack</h2>
+    </div>
+    <p>ManagerTool runs today on a Hostinger KVM VPS, coexisting with the operator's other dashboards without disturbing them — a dedicated nginx site and a loopback-only application service.</p>
+    <div class="tbl-scroll" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td>Host</td><td class="mono">Hostinger KVM · Ubuntu 24.04 LTS</td><td>Mumbai region · 1 vCPU / 4 GB / 50 GB · auto-renew on</td></tr>
+          <tr><td>Edge</td><td class="mono">nginx</td><td>TLS termination for <code>your-old-server.example.com</code>, WebSocket upgrade, coexists with other sites</td></tr>
+          <tr><td>Certificate</td><td class="mono">Let's Encrypt (certbot)</td><td>auto-renewing; agents verify against trust store</td></tr>
+          <tr><td>App</td><td class="mono">.NET 8 · Kestrel :5281 (loopback)</td><td><code>systemd</code> unit <code>managertool</code>, <code>start=auto</code>, restart-on-crash</td></tr>
+          <tr><td>Data</td><td class="mono">SQLite + filesystem</td><td>activity DB and <code>recordings/</code> under <code>/opt/managertool</code></td></tr>
+          <tr><td>Access</td><td class="mono">SSH key-only (ed25519)</td><td>deploy key added via panel; no password auth used</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="role">Agent packaging</div>
+        <h4>Single-file installer</h4>
+        <p style="margin:0; font-size:.93rem; color:var(--ink-2)">Self-contained <code>ManagerToolAgentSetup.exe</code> (Inno Setup) — no .NET required on the PC. Installs to Program Files, writes config, registers auto-start, launches immediately. Push via GPO / RMM or run once per PC.</p>
+      </div>
+      <div class="card">
+        <div class="role">Console packaging</div>
+        <h4>Standalone desktop app</h4>
+        <p style="margin:0; font-size:.93rem; color:var(--ink-2)">Self-contained <code>ManagerTool.Admin.exe</code> — runs on the desk head's own machine, connects to the same endpoint over the internet. Keep it off trader PCs; anyone who can sign in can watch every desk.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- VERIFICATION -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Verification status</p>
+      <h2>What has been proven end to end</h2>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Capability</th><th>How verified</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Agent enrolls &amp; registers over the internet</td><td>live host appeared on the production server via WSS through nginx</td><td><span class="pill ok">verified</span></td></tr>
+          <tr><td>Activity capture &amp; change-tracking</td><td>focus changes (app→app) stored in SQLite, retrieved via API</td><td><span class="pill ok">verified</span></td></tr>
+          <tr><td>Live screen streaming</td><td>8 JPEG frames received by an admin client over WebSocket</td><td><span class="pill ok">verified</span></td></tr>
+          <tr><td>On-disk recording + manifest</td><td>frames + complete manifest written under <code>recordings/</code></td><td><span class="pill ok">verified</span></td></tr>
+          <tr><td>Auth matrix (401/403/200)</td><td>no-token, wrong-role, and correct-role all behaved correctly</td><td><span class="pill ok">verified</span></td></tr>
+          <tr><td>Offline buffering &amp; retention</td><td>durability, ordered drain, cap eviction, purge cutoff (28 checks)</td><td><span class="pill ok">verified</span></td></tr>
+          <tr><td>Auto-start after restart</td><td>registry Run entry confirmed; server systemd <code>start=auto</code></td><td><span class="pill ok">verified</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section>
+    <div class="sec-head">
+      <p class="eyebrow">Known limitations &amp; roadmap</p>
+      <h2>What's deliberately not done yet</h2>
+    </div>
+    <div class="two-col">
+      <p><b>Token revocation.</b> JWTs are stateless; a leaked agent token stays valid until expiry. Rotating the signing/enrollment keys forces re-enrollment — a revocation list is the clean fix.</p>
+      <p><b>Auth hardening.</b> No rate-limiting, lockout, or failed-login audit on the login/enroll endpoints yet — on the pre-go-live checklist.</p>
+      <p><b>Recording playback UI.</b> Sessions are JPEG sequences + a manifest on disk; there is no in-console player yet — sessions are reviewed by opening the folder.</p>
+      <p><b>Config placeholders.</b> Shipped secrets are <code>CHANGE-ME</code> values; production must replace the signing key, enrollment key, and admin hash.</p>
+      <p><b>Installer signing.</b> The agent installer is unsigned, so SmartScreen warns on manual launch; silent GPO/RMM push or a code-signing cert removes the prompt.</p>
+      <p><b>Process start/stop events.</b> The <code>ActivityKind</code> contract reserves these, but the agent currently emits only focus and URL events.</p>
+    </div>
+  </section>
+
+  <footer>
+    ManagerTool · as-built architecture dossier · generated 2026-08-17 · .NET 8 / WPF / ASP.NET Core / SignalR / SQLite / nginx / systemd.
+    Live secrets and credentials are intentionally omitted from this document — see the deployment notes for those.
+  </footer>
+</main>

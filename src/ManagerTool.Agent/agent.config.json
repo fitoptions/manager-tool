@@ -1,0 +1,5 @@
+{
+  "ServerUrl": "https://localhost:5281",
+  "EnrollmentKey": "CHANGE-ME-agent-enrollment-key",
+  "AllowInvalidServerCert": true
+}

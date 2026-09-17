@@ -1,0 +1,168 @@
+; Inno Setup script for the Manager Tool agent — NEW VPS build.
+; Copy of deploy/ManagerToolAgent.iss with ONLY the two deployment #defines changed:
+;   ServerUrl    -> https://your-server.example.com   (replace APP_DOMAIN with your bland subdomain)
+;   EnrollmentKey-> the NEW key generated for this server (see deploy/newvps/SECRETS.txt)
+;
+; Build: run ./deploy/publish.ps1 -Agent first (produces deploy/out/agent), then compile
+; this with ISCC. Because it references ..\out\agent, keep it in deploy/ when compiling,
+; or adjust the [Files] Source path. Output: ManagerToolAgentSetup.exe.
+
+#define MyAppName "Manager Tool"
+#define MyAppVersion "1.2.5"
+#define MyPublisher "Manager Tool"
+#define MyExe "ManagerTool.exe"
+
+; ---- DEPLOYMENT VALUES (NEW production server) ----
+#define ServerUrl "https://your-server.example.com"
+#define EnrollmentKey "REPLACE_WITH_ENROLLMENT_KEY_AT_BUILD"
+; ---------------------------------------------------
+
+[Setup]
+AppId={{A7F3C2E1-8B4D-4E6A-9C1F-2D5E7A9B3C6F}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyPublisher}
+DefaultDirName={autopf}\Manager Tool
+DisableProgramGroupPage=yes
+PrivilegesRequired=admin
+OutputBaseFilename=ManagerToolAgentSetup
+Compression=lzma2
+SolidCompression=yes
+ArchitecturesInstallIn64BitMode=x64compatible
+VersionInfoVersion={#MyAppVersion}
+Uninstallable=no
+
+[Files]
+Source: "out\agent\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: recursesubdirs createallsubdirs
+; The SYSTEM self-update script (backup -> install -> verify heartbeat -> rollback). Staged into
+; {app}, copied into the locked management dir by CreateManagementTasks. Carries no secret.
+Source: "..\agent-scripts\update.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+
+[Registry]
+Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; \
+    ValueType: string; ValueName: "ManagerTool"; \
+    ValueData: """{app}\{#MyExe}"""
+
+[Run]
+Filename: "{app}\{#MyExe}"; Description: "Start Manager Tool"; \
+    Flags: nowait postinstall
+
+[Code]
+const
+  MgmtDir = 'C:\ProgramData\ManagerToolMgmt';
+
+procedure LockDir(const Dir: string);
+var rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\icacls.exe'),
+    '"' + Dir + '" /inheritance:r ' +
+    '/grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)RX"',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+procedure GrantTaskRun(const TaskName: string);
+var rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\icacls.exe'),
+    '"' + ExpandConstant('{sys}\Tasks\') + TaskName + '" /grant *S-1-5-32-545:RX',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+procedure CreateManagementTasks;
+var
+  RemoveCmd, UpdatePs1, InstallDir, CadwDir, Script: string;
+  rc: Integer;
+begin
+  ForceDirectories(MgmtDir);
+  LockDir(MgmtDir);
+
+  InstallDir := ExpandConstant('{app}');
+  CadwDir    := ExpandConstant('{commonappdata}\ManagerTool');
+  RemoveCmd  := MgmtDir + '\remove.cmd';
+  UpdatePs1  := MgmtDir + '\update.ps1';
+
+  Script :=
+    '@echo off' + #13#10 +
+    'sc stop ManagerToolSvc >nul 2>&1' + #13#10 +
+    'sc delete ManagerToolSvc >nul 2>&1' + #13#10 +
+    'taskkill /F /IM ManagerToolSvc.exe >nul 2>&1' + #13#10 +
+    'taskkill /F /IM ManagerTool.exe >nul 2>&1' + #13#10 +
+    'reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v ManagerTool /f >nul 2>&1' + #13#10 +
+    'timeout /t 2 /nobreak >nul' + #13#10 +
+    'rmdir /s /q "' + InstallDir + '" >nul 2>&1' + #13#10 +
+    'rmdir /s /q "' + CadwDir + '" >nul 2>&1' + #13#10 +
+    'schtasks /Delete /TN ManagerToolRemove /f >nul 2>&1' + #13#10 +
+    'schtasks /Delete /TN ManagerToolUpdate /f >nul 2>&1' + #13#10;
+  SaveStringToFile(RemoveCmd, Script, False);
+
+  // Robust self-update shipped as a real file (deploy/agent-scripts/update.ps1): backup, stop the
+  // agent, install, verify the new build reports a live connection, roll back if not.
+  CopyFile(ExpandConstant('{app}\scripts\update.ps1'), UpdatePs1, False);
+
+  // Health dir the (non-elevated) agent writes its "connected" heartbeat into, and the SYSTEM
+  // updater reads to judge a new build. Users need Modify so the agent can write.
+  ForceDirectories(ExpandConstant('{commonappdata}\ManagerTool\health'));
+  Exec(ExpandConstant('{sys}\icacls.exe'),
+    '"' + ExpandConstant('{commonappdata}\ManagerTool\health') + '" /grant "*S-1-5-32-545:(OI)(CI)M"',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+    '/Create /TN ManagerToolRemove /TR "cmd /c \"' + RemoveCmd + '\"" /SC ONCE /ST 00:00 /RU SYSTEM /RL HIGHEST /F',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  GrantTaskRun('ManagerToolRemove');
+
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+    '/Create /TN ManagerToolUpdate /TR "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + UpdatePs1 + '\"" /SC ONCE /ST 00:00 /RU SYSTEM /RL HIGHEST /F',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  GrantTaskRun('ManagerToolUpdate');
+end;
+
+procedure InstallService;
+var SvcExe: string; rc: Integer;
+begin
+  SvcExe := ExpandConstant('{app}\ManagerToolSvc.exe');
+  Exec(ExpandConstant('{sys}\sc.exe'), 'stop ManagerToolSvc',   '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'), 'delete ManagerToolSvc', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'),
+    'create ManagerToolSvc binPath= "\"' + SvcExe + '\"" start= auto obj= LocalSystem DisplayName= "Manager Tool"',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'),
+    'failure ManagerToolSvc reset= 0 actions= restart/5000/restart/5000/restart/5000',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'), 'start ManagerToolSvc', '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+// Kill the running agent + watchdog BEFORE the file copy. Without this, a silent
+// (/VERYSILENT) reinstall cannot overwrite the in-use ManagerTool.exe — the file stays
+// locked, the old binary survives, and the "update" silently no-ops (the bug that left
+// hosts stuck on the previous version after a remote update).
+procedure StopRunningAgent;
+var rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\sc.exe'), 'stop ManagerToolSvc', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM ManagerToolSvc.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM ManagerTool.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Sleep(1500);   // let the file handles release before Inno copies over them
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var ConfigPath, Json: string;
+begin
+  if CurStep = ssInstall then
+    StopRunningAgent;
+
+  if CurStep = ssPostInstall then
+  begin
+    ConfigPath := ExpandConstant('{app}\agent.config.json');
+    Json :=
+      '{' + #13#10 +
+      '  "ServerUrl": "{#ServerUrl}",' + #13#10 +
+      '  "EnrollmentKey": "{#EnrollmentKey}",' + #13#10 +
+      '  "AllowInvalidServerCert": false' + #13#10 +
+      '}' + #13#10;
+    SaveStringToFile(ConfigPath, Json, False);
+
+    CreateManagementTasks;
+    InstallService;
+  end;
+end;

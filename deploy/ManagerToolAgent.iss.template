@@ -1,0 +1,177 @@
+; Inno Setup script for the Manager Tool agent (product internally = ManagerTool; de-branded on the endpoint).
+; Before compiling: run ./publish.ps1 -Agent so ./out/agent exists (produces ManagerTool.exe), then edit the #defines.
+;
+; SECURITY (security hardening): the SYSTEM management tasks (remove/update) execute scripts ONLY
+; from C:\ProgramData\ManagerToolMgmt, which the installer locks so BUILTIN\Users cannot write to
+; it. The update script downloads the installer INTO that same locked directory as SYSTEM, so no
+; user-writable file is ever run with elevation.
+
+#define MyAppName "Manager Tool"
+#define MyAppVersion "1.2.5"
+#define MyPublisher "Manager Tool"
+#define MyExe "ManagerTool.exe"
+
+; ---- DEPLOYMENT VALUES (live production server) ----
+#define ServerUrl "https://your-old-server.example.com"
+#define EnrollmentKey "REPLACE_WITH_ENROLLMENT_KEY_AT_BUILD"
+; ----------------------------------------------------
+
+[Setup]
+; Stable GUID AppId (M-5) so uninstall keys don't collide with same-named products.
+AppId={{A7F3C2E1-8B4D-4E6A-9C1F-2D5E7A9B3C6F}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyPublisher}
+DefaultDirName={autopf}\Manager Tool
+DisableProgramGroupPage=yes
+PrivilegesRequired=admin
+OutputBaseFilename=ManagerToolAgentSetup
+Compression=lzma2
+SolidCompression=yes
+ArchitecturesInstallIn64BitMode=x64compatible
+VersionInfoVersion={#MyAppVersion}
+; Managed agent: no Add/Remove Programs entry and no Inno uninstaller are created.
+; Removal is handled by the admin console (the SYSTEM ManagerToolRemove task) or uninstall-agent.ps1.
+; This is deliberate for a disclosed, contract-consented deployment on company-owned PCs; set
+; Uninstallable=yes if you want the Control Panel entry back.
+Uninstallable=no
+
+[Files]
+; Everything published by ./publish.ps1 -Agent — but never ship .pdb symbols (H-4).
+Source: "out\agent\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: recursesubdirs createallsubdirs
+; The SYSTEM self-update script. Staged into {app} here, then copied into the locked management
+; dir by CreateManagementTasks. Carries no secret (it reads the enrollment key from agent.config.json
+; at run time), so a copy in {app} is fine.
+Source: "agent-scripts\update.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+
+[Registry]
+; Auto-start at every user logon (machine-wide). The Run value is removed by remove.cmd on
+; managed removal (there is no Inno uninstaller, so no uninsdeletevalue flag).
+Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"; \
+    ValueType: string; ValueName: "ManagerTool"; \
+    ValueData: """{app}\{#MyExe}"""
+
+[Run]
+Filename: "{app}\{#MyExe}"; Description: "Start Manager Tool"; \
+    Flags: nowait postinstall
+
+; No [UninstallRun]: with Uninstallable=no there is no Inno uninstaller. The scheduled tasks are
+; deleted by remove.cmd (the ManagerToolRemove SYSTEM task) or by uninstall-agent.ps1.
+
+[Code]
+const
+  MgmtDir = 'C:\ProgramData\ManagerToolMgmt';   // locked (Users cannot write); holds the SYSTEM scripts
+
+// Locks a directory so only Administrators + SYSTEM can write; Users get read+execute only.
+// This is what makes running scripts from here safe for a /RU SYSTEM task (security hardening).
+procedure LockDir(const Dir: string);
+var rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\icacls.exe'),
+    '"' + Dir + '" /inheritance:r ' +
+    '/grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)RX"',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+procedure GrantTaskRun(const TaskName: string);
+var rc: Integer;
+begin
+  // Let standard users (the non-elevated agent) trigger the task, but not modify it.
+  Exec(ExpandConstant('{sys}\icacls.exe'),
+    '"' + ExpandConstant('{sys}\Tasks\') + TaskName + '" /grant *S-1-5-32-545:RX',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+procedure CreateManagementTasks;
+var
+  RemoveCmd, UpdatePs1, InstallDir, CadwDir, Script: string;
+  rc: Integer;
+begin
+  ForceDirectories(MgmtDir);
+  LockDir(MgmtDir);                                  // lock BEFORE writing scripts into it
+
+  InstallDir := ExpandConstant('{app}');             // C:\Program Files\Manager Tool
+  CadwDir    := ExpandConstant('{commonappdata}\ManagerTool');
+  RemoveCmd  := MgmtDir + '\remove.cmd';
+  UpdatePs1  := MgmtDir + '\update.ps1';
+
+  // --- remove.cmd (SYSTEM): stop the service + agent, remove autostart, delete install + all
+  //     agent data. This build keeps no local consent/install log (disclosure is out-of-band),
+  //     so removal leaves nothing of the agent's own behind.
+  Script :=
+    '@echo off' + #13#10 +
+    'sc stop ManagerToolSvc >nul 2>&1' + #13#10 +
+    'sc delete ManagerToolSvc >nul 2>&1' + #13#10 +
+    'taskkill /F /IM ManagerToolSvc.exe >nul 2>&1' + #13#10 +
+    'taskkill /F /IM ManagerTool.exe >nul 2>&1' + #13#10 +
+    'reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v ManagerTool /f >nul 2>&1' + #13#10 +
+    'timeout /t 2 /nobreak >nul' + #13#10 +
+    'rmdir /s /q "' + InstallDir + '" >nul 2>&1' + #13#10 +
+    'rmdir /s /q "' + CadwDir + '" >nul 2>&1' + #13#10 +
+    'schtasks /Delete /TN ManagerToolRemove /f >nul 2>&1' + #13#10 +
+    'schtasks /Delete /TN ManagerToolUpdate /f >nul 2>&1' + #13#10;
+  SaveStringToFile(RemoveCmd, Script, False);
+
+  // --- update.ps1 (SYSTEM): the robust self-update — backup, stop agent, install, verify the new
+  //     build reports a live connection, and roll back if it does not. Shipped as a real file
+  //     (deploy/agent-scripts/update.ps1) and copied into the locked dir here, rather than generated
+  //     inline, so it can be linted and tested on its own. No user-writable file runs as SYSTEM.
+  CopyFile(ExpandConstant('{app}\scripts\update.ps1'), UpdatePs1, False);
+
+  // Health directory the (non-elevated) agent writes its "connected" heartbeat into, and the SYSTEM
+  // updater reads to judge a new build. Grant Users Modify so the agent can write; SYSTEM/Admins
+  // already have full control by inheritance from ProgramData.
+  ForceDirectories(ExpandConstant('{commonappdata}\ManagerTool\health'));
+  Exec(ExpandConstant('{sys}\icacls.exe'),
+    '"' + ExpandConstant('{commonappdata}\ManagerTool\health') + '" /grant "*S-1-5-32-545:(OI)(CI)M"',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+
+  // Create the SYSTEM tasks pointing at the locked scripts, and let users trigger (not edit) them.
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+    '/Create /TN ManagerToolRemove /TR "cmd /c \"' + RemoveCmd + '\"" /SC ONCE /ST 00:00 /RU SYSTEM /RL HIGHEST /F',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  GrantTaskRun('ManagerToolRemove');
+
+  Exec(ExpandConstant('{sys}\schtasks.exe'),
+    '/Create /TN ManagerToolUpdate /TR "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + UpdatePs1 + '\"" /SC ONCE /ST 00:00 /RU SYSTEM /RL HIGHEST /F',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  GrantTaskRun('ManagerToolUpdate');
+end;
+
+// Registers the watchdog as an auto-start SYSTEM service that a standard user cannot stop,
+// with SCM auto-restart on failure. Visible in services.msc as "Manager Tool" (not hidden).
+procedure InstallService;
+var SvcExe: string; rc: Integer;
+begin
+  SvcExe := ExpandConstant('{app}\ManagerToolSvc.exe');
+  // stop/delete any prior instance first so a re-install/upgrade re-registers cleanly.
+  Exec(ExpandConstant('{sys}\sc.exe'), 'stop ManagerToolSvc',   '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'), 'delete ManagerToolSvc', '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'),
+    'create ManagerToolSvc binPath= "\"' + SvcExe + '\"" start= auto obj= LocalSystem DisplayName= "Manager Tool"',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  // Auto-recovery: restart the service on every failure; never reset the failure count.
+  Exec(ExpandConstant('{sys}\sc.exe'),
+    'failure ManagerToolSvc reset= 0 actions= restart/5000/restart/5000/restart/5000',
+    '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\sc.exe'), 'start ManagerToolSvc', '', SW_HIDE, ewWaitUntilTerminated, rc);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var ConfigPath, Json: string;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    ConfigPath := ExpandConstant('{app}\agent.config.json');
+    Json :=
+      '{' + #13#10 +
+      '  "ServerUrl": "{#ServerUrl}",' + #13#10 +
+      '  "EnrollmentKey": "{#EnrollmentKey}",' + #13#10 +
+      '  "AllowInvalidServerCert": false' + #13#10 +
+      '}' + #13#10;
+    SaveStringToFile(ConfigPath, Json, False);
+
+    CreateManagementTasks;
+    InstallService;
+  end;
+end;
